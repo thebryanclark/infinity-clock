@@ -1,0 +1,52 @@
+define(function(){
+  var config = {
+    innerRadiusRatios: {
+      temperature: 0.88,
+      sky: 0.90,
+      calendar: 0.95
+    }
+  };
+
+  var geometryIndex = (function populateGeometryIndex(){  
+    var geometryIndex = [];
+    var circle; var angle;
+    for(var qHrNum = 0; qHrNum<24*4; qHrNum++){
+      if(0<=qHrNum/4 && qHrNum/4<6){
+        circle = "bottom";
+        angle = -Math.PI/2 + Math.PI/6 * (qHrNum/4);
+      }
+      else if(6<=qHrNum/4 && qHrNum/4<12){
+        circle = "top";
+        angle = -Math.PI/2 - Math.PI/6 * (qHrNum/4 - 6);
+      }
+      else if(12<=qHrNum/4 && qHrNum/4<18){
+        circle = "top";
+        angle = Math.PI/2 - Math.PI/6 * (qHrNum/4 - 12);
+      }
+      else if(18<=qHrNum/4 && qHrNum/4<24){
+        circle = "bottom";
+        angle = Math.PI/2 + Math.PI/6 * (qHrNum/4 - 18);
+      }
+      if(circle==="bottom")  {geometryIndex[qHrNum] = {dir:1, ty:100};}
+      else if(circle==="top"){geometryIndex[qHrNum] = {dir:-1, ty:300};}
+      geometryIndex[qHrNum].angle = angle;
+    }
+    return geometryIndex;
+  })();
+      
+  function makeQHrGeneralArc(innerRadiusRatio, widthRatio, color){
+    var tx = 100; var ty = geometry.ty; 
+    var angle = geometry.angle; var dir = geometry.dir;
+    var ax = tx + innerRadiusRatio*r*Math.cos(angle);
+    var ay = ty + innerRadiusRatio*r*Math.sin(angle);
+    var bx = tx + innerRadiusRatio*r*Math.cos(angle+Math.PI/24*dir);
+    var by = ty + innerRadiusRatio*r*Math.sin(angle+Math.PI/24*dir);
+    var flags = "0,0 "; //need to fix
+    var arcSvg = document.createElementNS(xmlns, 'path');
+    arcSvg.setAttribute("d", "M" + ax+","+ay +" A"+r+","+r+" 0 "+flags + bx+","+by);
+    arcSvg.setAttribute("stroke-width", r*widthRatio);
+    arcSvg.setAttribute("stroke", color);
+    return arcSvg;       //caller appendsChild
+  }
+
+});
