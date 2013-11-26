@@ -4,7 +4,26 @@ define(function(){
       temperature: 0.88,
       sky: 0.90,
       calendar: 0.95
+    },
+    temperatureColorBucketsLowerLimits:[ //ordered
+    //5deg Fahrenheit increments (maybe add other options later)   
+      {lowerLimit:-20, color:"#"}, {lowerLimit:-15, color:"#"}, {lowerLimit:-10, color:"#"},  {lowerLimit:-5, color:"#"},
+      {lowerLimit: 0, color:"#"}, {lowerLimit: 5, color:"#"}, {lowerLimit:10, color:"#"},  {lowerLimit:15, color:"#"},
+      {lowerLimit:20, color:"#"}, {lowerLimit:25, color:"#"}, {lowerLimit:30, color:"#"},  {lowerLimit:35, color:"#"},
+      {lowerLimit:40, color:"#"}, {lowerLimit:45, color:"#"}, {lowerLimit:50, color:"#"},  {lowerLimit:55, color:"#"},
+      {lowerLimit:60, color:"#"}, {lowerLimit:65, color:"#"}, {lowerLimit:70, color:"#"},  {lowerLimit:75, color:"#"},
+      {lowerLimit:80, color:"#"}, {lowerLimit:85, color:"#"}, {lowerLimit:90, color:"#"},  {lowerLimit:95, color:"#"},
+      {lowerLimit:100, color:"#"}, {lowerLimit:105, color:"#"}, {lowerLimit:110, color:"#"},  {lowerLimit:115, color:"#"}
+    ],
+    precipitationProbBucketsLowerLimits:[0, 5, 15, 35, 55, 75],//there should be 6 buckets (including lowerLimit=0 which displays no svg)
+    weatherColors: {
+      cloudsDay: "hsl(0, 0%, 75%)",  
+      clearSkyDay: "hsl(60, 100%, 85%)",
+      cloudsNight: "hsl(0, 0%, 45%)",
+      clearSkyNight: "hsl(230, 35%, 25%)",
+      raindrops: "hsl(210, 100%, 55%)"
     }
+    // more?...
   };
 
   var geometryIndex = (function populateGeometryIndex(){  
@@ -33,20 +52,69 @@ define(function(){
     }
     return geometryIndex;
   })();
-      
-  function makeQHrGeneralArc(innerRadiusRatio, widthRatio, color){
-    var tx = 100; var ty = geometry.ty; 
-    var angle = geometry.angle; var dir = geometry.dir;
-    var ax = tx + innerRadiusRatio*r*Math.cos(angle);
-    var ay = ty + innerRadiusRatio*r*Math.sin(angle);
-    var bx = tx + innerRadiusRatio*r*Math.cos(angle+Math.PI/24*dir);
-    var by = ty + innerRadiusRatio*r*Math.sin(angle+Math.PI/24*dir);
-    var flags = "0,0 "; //need to fix
-    var arcSvg = document.createElementNS(xmlns, 'path');
-    arcSvg.setAttribute("d", "M" + ax+","+ay +" A"+r+","+r+" 0 "+flags + bx+","+by);
-    arcSvg.setAttribute("stroke-width", r*widthRatio);
-    arcSvg.setAttribute("stroke", color);
-    return arcSvg;       //caller appendsChild
-  }
 
+  //weatherInfo: {temperature, precipitation, clouds, dayNightShade}
+  //calendarInfo: {calColor, calInfo}
+  return function makeQHr(qHrNum, weatherInfo, calendarInfo){
+    var qHrSvgGroup = document.createElementNS(xmlns, 'g');
+    var geometry = geometryIndex[qHrNum];
+    
+    qHrSvgGroup.appendChild(makeQHrTemperature(weatherInfo.temperature));
+    qHrSvgGroup.appendChild(makeQHrSkyBasic(weatherInfo.clouds, weatherInfo.dayNightShade));
+    qHrSvgGroup.appendChild(makeQHrSkyPrecipitation(weatherInfo.precipitation));
+    qHrSvgGroup.appendChild(makeQHrCalendar(calendarInfo.calColor));
+    
+    return qHrSvgGroup;
+      
+    function makeQHrGeneralArc(innerRadiusRatio, widthRatio, color){
+      var tx = 100; var ty = geometry.ty; 
+      var angle = geometry.angle; var dir = geometry.dir;
+      var ax = tx + innerRadiusRatio*r*Math.cos(angle);
+      var ay = ty + innerRadiusRatio*r*Math.sin(angle);
+      var bx = tx + innerRadiusRatio*r*Math.cos(angle+Math.PI/24*dir);
+      var by = ty + innerRadiusRatio*r*Math.sin(angle+Math.PI/24*dir);
+      var flags = "0,0 "; //need to fix
+      var arcSvg = document.createElementNS(xmlns, 'path');
+      arcSvg.setAttribute("d", "M" + ax+","+ay +" A"+r+","+r+" 0 "+flags + bx+","+by);
+      arcSvg.setAttribute("stroke-width", r*widthRatio);
+      arcSvg.setAttribute("stroke", color);
+      return arcSvg;       //caller appendsChild
+    }
+    function getTemperatureColor(temperature){
+    //would it be insane to have an additional var temperatureColors = [{-20:"#6e6e6e"}, {-19:"#6e6e6e"}, -{18:"#6e6e6e"}, ...] constructed by an initializer? Or is it better to have a helper function compute the color on demand?
+      for(var i = 0; i<config.temperatureColorBucketsLowerLimits.length; i++){
+        if( temperature > config.temperatureColorBucketsLowerLimits[i].lowerLimit ){
+          return config.temperatureColorBucketsLowerLimits[i].color;
+        }
+      }
+    }
+    function makeQHrTemperature(temperature){
+      var color = getTemperatureColor(temperature);
+      var widthRatio = config.innerRadiusRatios.sky - config.innerRadiusRatios.temperature;
+      var temperatureSvg = makeQHrGeneralArc(config.innerRadiusRatios.temperature, widthRatio, color);
+      return temperatureSvg;
+    }
+    function makeQHrSkyBasic(clouds, dayNightShade){
+      var widthRatio = config.innerRadiusRatios.calendar - config.innerRadiusRatios.sky;
+      var cloudsShade = null ; //clouds, dayNightShade, config.weathercolors.cloudsDay, config.weatherColors.cloudsNight
+      var clearSkyShade = null ; //dayNightShade, config.weathercolors.clearSkyDay, config.weatherColors.clearSkyNight
+        // use regexs to parse HSL?
+      var cloudsSvg = makeQHrGeneralArc(config.innerRadiusRatios.sky, widthRatio, cloudsShade);
+      var clearSkySvg = makeQHrGeneralArc(config.innerRadiusRatios.sky, widthRatio, clearSkyShade);
+      
+      var SkyBasicSvgGroup = document.createElementNS(xmlns, 'g');
+      SkyBasicSvgGroup.appendChild(cloudsSvg);
+      SkyBasicSvgGroup.appendChild(clearSkySvg);
+      return SkyBasicSvgGroup;
+    }
+    function makeQHrSkyPrecipitation(precipitation){//(more complicated)
+      
+    }
+    function makeQHrCalendar(calColor){
+      var widthRatio = 1 - config.innerRadiusRatios.calendar;
+      var calendarSvg = makeQHrGeneralArc(config.innerRadiusRatios.calendar, widthRatio, calColor);
+      return calendarSvg;
+    }
+
+  };
 });
