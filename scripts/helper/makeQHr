@@ -1,32 +1,55 @@
-define(function(){
+define(function() {
   var config = {
     innerRadiusRatios: {
       temperature: 0.88,
       sky: 0.90,
       calendar: 0.95
     },
-    temperatureColorBucketsLowerLimits:[ //ordered
-    //5deg Fahrenheit increments (maybe add other options later)   
-      {lowerLimit:-20, color:"#"}, {lowerLimit:-15, color:"#"}, {lowerLimit:-10, color:"#"},  {lowerLimit:-5, color:"#"},
-      {lowerLimit: 0, color:"#"}, {lowerLimit: 5, color:"#"}, {lowerLimit:10, color:"#"},  {lowerLimit:15, color:"#"},
-      {lowerLimit:20, color:"#"}, {lowerLimit:25, color:"#"}, {lowerLimit:30, color:"#"},  {lowerLimit:35, color:"#"},
-      {lowerLimit:40, color:"#"}, {lowerLimit:45, color:"#"}, {lowerLimit:50, color:"#"},  {lowerLimit:55, color:"#"},
-      {lowerLimit:60, color:"#"}, {lowerLimit:65, color:"#"}, {lowerLimit:70, color:"#"},  {lowerLimit:75, color:"#"},
-      {lowerLimit:80, color:"#"}, {lowerLimit:85, color:"#"}, {lowerLimit:90, color:"#"},  {lowerLimit:95, color:"#"},
-      {lowerLimit:100, color:"#"}, {lowerLimit:105, color:"#"}, {lowerLimit:110, color:"#"},  {lowerLimit:115, color:"#"}
+    temperatureColorStops: [ //ordered  //above the highest stop and below the lowest will be faded to 0 saturation over (40?) degrees
+      {temperature: "-10", hue: "0"}, {temperature: "90", hue: "360"}
     ],
-    precipitationProbBucketsLowerLimits:[0, 5, 15, 35, 55, 75],//there should be 6 buckets (including lowerLimit=0 which displays no svg)
+    precipitationProbBucketsLowerLimits: [0, 5, 15, 35, 55, 75],//there should be 6 buckets (including lowerLimit=0 which displays no svg)
     weatherColors: {
-      cloudsDay: "hsl(0, 0%, 75%)",  
+      cloudsDay: "hsl(0, 0%, 75%)",
       clearSkyDay: "hsl(60, 100%, 85%)",
       cloudsNight: "hsl(0, 0%, 45%)",
       clearSkyNight: "hsl(230, 35%, 25%)",
       raindrops: "hsl(210, 100%, 55%)"
     }
-    // more?...
   };
 
-  var geometryIndex = (function populateGeometryIndex(){  
+  var temperatureColorIndex = (function populateTemperatureColorIndex() { 
+    var temperatureColorIndex = {};
+    var temperatureColorStops = config.temperatureColorStops;
+    function interpolate(x, x0, y0, x1, y1){
+      return y0 + (x - x0) * (y1 - y0)/(x1 - x0);
+    }
+    var stopNum = 0;
+    for(var deg = temperatureColorStops[0].temperature; 
+            deg < temperatureColorStops[temperatureColorStops.length - 1].temperature; deg++){
+      if(temperatureColorStops[stopNum+1] > temperatureColorStops.length){break;}
+      if(deg > temperatureColorStops[stopNum+1].temperature){stopNum++;}
+      var hue = interpolate(deg, temperatureColorStops[stopNum].temperature, temperatureColorStops[stopNum].hue,
+                            temperatureColorStops[stopNum+1].temperature, temperatureColorStops[stopNum+1].hue);
+      temperatureColorIndex[deg] = "hsv(" + hue + ",100%,100%)";
+    }
+    
+    var lowestStopTemperature = temperatureColorStops[0].temperature;
+    for(var deg = lowestStopTemperature; deg > lowestStopTemperature - 40; deg--){
+      var saturation = interpolate(deg, lowestStopTemperature, 100, lowestStopTemperature - 40, 0);
+      temperatureColorIndex[deg] = "hsv(" + temperatureColorStops[0].hue + "," + saturation + "%,100%)";
+    }
+    var highestStopTemperature = Number(temperatureColorStops[temperatureColorStops.length - 1].temperature); //Using Number() wasn't necessary in similar situations above, including lowestStopTemperature. That's odd...
+    for(var deg = highestStopTemperature; deg < highestStopTemperature + 40; deg++){
+      var saturation = interpolate(deg, highestStopTemperature, 100, highestStopTemperature + 40, 0);
+      temperatureColorIndex[deg] = "hsv(" + 
+                                   temperatureColorStops[temperatureColorStops.length - 1].hue + 
+                                   "," + saturation + "%,100%)";
+    }
+    return temperatureColorIndex;
+  })();
+
+  var geometryIndex = (function populateGeometryIndex() {  
     var geometryIndex = [];
     var circle; var angle;
     for(var qHrNum = 0; qHrNum<24*4; qHrNum++){
@@ -55,7 +78,7 @@ define(function(){
 
   //weatherInfo: {temperature, precipitation, clouds, dayNightShade}
   //calendarInfo: {calColor, calInfo}
-  return function makeQHr(qHrNum, weatherInfo, calendarInfo){
+  return function makeQHr(qHrNum, weatherInfo, calendarInfo) {
     var qHrSvgGroup = document.createElementNS(xmlns, 'g');
     var geometry = geometryIndex[qHrNum];
     
@@ -66,7 +89,7 @@ define(function(){
     
     return qHrSvgGroup;
       
-    function makeQHrGeneralArc(innerRadiusRatio, widthRatio, color){
+    function makeQHrGeneralArc(innerRadiusRatio, widthRatio, color) {
       var tx = 100; var ty = geometry.ty; 
       var angle = geometry.angle; var dir = geometry.dir;
       var ax = tx + innerRadiusRatio*r*Math.cos(angle);
@@ -80,21 +103,13 @@ define(function(){
       arcSvg.setAttribute("stroke", color);
       return arcSvg;       //caller appendsChild
     }
-    function getTemperatureColor(temperature){
-    //would it be insane to have an additional var temperatureColors = [{-20:"#6e6e6e"}, {-19:"#6e6e6e"}, -{18:"#6e6e6e"}, ...] constructed by an initializer? Or is it better to have a helper function compute the color on demand?
-      for(var i = 0; i<config.temperatureColorBucketsLowerLimits.length; i++){
-        if( temperature > config.temperatureColorBucketsLowerLimits[i].lowerLimit ){
-          return config.temperatureColorBucketsLowerLimits[i].color;
-        }
-      }
-    }
-    function makeQHrTemperature(temperature){
-      var color = getTemperatureColor(temperature);
+    function makeQHrTemperature(temperature) {
+      var color = temperatureColorIndex(temperature);
       var widthRatio = config.innerRadiusRatios.sky - config.innerRadiusRatios.temperature;
       var temperatureSvg = makeQHrGeneralArc(config.innerRadiusRatios.temperature, widthRatio, color);
       return temperatureSvg;
     }
-    function makeQHrSkyBasic(clouds, dayNightShade){
+    function makeQHrSkyBasic(clouds, dayNightShade) {
       var widthRatio = config.innerRadiusRatios.calendar - config.innerRadiusRatios.sky;
       var cloudsShade = null ; //clouds, dayNightShade, config.weathercolors.cloudsDay, config.weatherColors.cloudsNight
       var clearSkyShade = null ; //dayNightShade, config.weathercolors.clearSkyDay, config.weatherColors.clearSkyNight
@@ -107,10 +122,10 @@ define(function(){
       SkyBasicSvgGroup.appendChild(clearSkySvg);
       return SkyBasicSvgGroup;
     }
-    function makeQHrSkyPrecipitation(precipitation){//(more complicated)
+    function makeQHrSkyPrecipitation(precipitation) {//(more complicated)
       
     }
-    function makeQHrCalendar(calColor){
+    function makeQHrCalendar(calColor) {
       var widthRatio = 1 - config.innerRadiusRatios.calendar;
       var calendarSvg = makeQHrGeneralArc(config.innerRadiusRatios.calendar, widthRatio, calColor);
       return calendarSvg;
