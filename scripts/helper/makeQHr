@@ -6,7 +6,8 @@ define(function() {
       calendar: 0.95
     },
     temperatureColorStops: [ //ordered  //above the highest stop and below the lowest will be faded to 0 saturation over (40?) degrees
-      {temperature: "-10", hue: "0"}, {temperature: "90", hue: "360"}
+      {temperature: "-10", hue: "0"}, 
+      {temperature: "90", hue: "360"}
     ],
     precipitationProbBucketsLowerLimits: [0, 5, 15, 35, 55, 75],//there should be 6 buckets (including lowerLimit=0 which displays no svg)
     weatherColors: {
@@ -117,10 +118,10 @@ define(function() {
       var cloudsSvg = makeQHrGeneralArc(config.innerRadiusRatios.sky, widthRatio, cloudsShade);
       var clearSkySvg = makeQHrGeneralArc(config.innerRadiusRatios.sky, widthRatio, clearSkyShade);
       
-      var SkyBasicSvgGroup = document.createElementNS(xmlns, 'g');
-      SkyBasicSvgGroup.appendChild(cloudsSvg);
-      SkyBasicSvgGroup.appendChild(clearSkySvg);
-      return SkyBasicSvgGroup;
+      var skyBasicSvgGroup = document.createElementNS(xmlns, 'g');
+      skyBasicSvgGroup.appendChild(cloudsSvg);
+      skyBasicSvgGroup.appendChild(clearSkySvg);
+      return skyBasicSvgGroup;
     }
     function makeQHrSkyPrecipitation(precipitation) {//(more complicated)
       
